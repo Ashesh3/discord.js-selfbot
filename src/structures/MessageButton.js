@@ -23,9 +23,9 @@ class MessageButton extends BaseMessageComponent {
   /**
    * @param {MessageButton|MessageButtonOptions} [data={}] MessageButton to clone or raw data
    */
-  constructor(data = {}) {
-    super({ type: 'BUTTON' });
-
+  constructor(data = {}, client = null) {
+    super(client, { type: 'BUTTON' });
+    this.client = client
     this.setup(data);
   }
 
@@ -65,6 +65,11 @@ class MessageButton extends BaseMessageComponent {
      * @type {boolean}
      */
     this.disabled = data.disabled ?? false;
+    this.guild_id = data.guild_id ?? null;
+    this.channel_id = data.channel_id ?? null;
+    this.application_id = data.application_id ?? null;
+    this.message_id = data.message_id ?? null;
+    this.hash = data.hash ?? null;
   }
 
   /**
@@ -159,6 +164,30 @@ class MessageButton extends BaseMessageComponent {
    */
   static resolveStyle(style) {
     return typeof style === 'string' ? style : MessageButtonStyles[style];
+  }
+
+  /**
+   * Respond to Button.
+   * @returns {Object}
+   */
+  async respond() {
+    return this.client.api.interactions.post({
+      data: {
+        "type": 3,
+        "guild_id": this.guild_id,
+        "channel_id": this.channel_id,
+        "message_flags": 0,
+        "message_id": this.message_id,
+        "application_id": this.application_id,
+        "nonce": Number(new Date()),
+        "session_id": this.client.ws.shards.first().sessionId,
+        "data": {
+          "component_type": 2,
+          "custom_id": this.customId,
+          "hash": this.hash
+        }
+      }
+    })
   }
 }
 

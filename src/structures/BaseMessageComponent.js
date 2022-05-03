@@ -71,12 +71,12 @@ class BaseMessageComponent {
       }
       case MessageComponentTypes.BUTTON: {
         const MessageButton = require('./MessageButton');
-        component = data instanceof MessageButton ? data : new MessageButton(data);
+        component = data instanceof MessageButton ? data : new MessageButton(data, client);
         break;
       }
       case MessageComponentTypes.SELECT_MENU: {
         const MessageSelectMenu = require('./MessageSelectMenu');
-        component = data instanceof MessageSelectMenu ? data : new MessageSelectMenu(data);
+        component = data instanceof MessageSelectMenu ? data : new MessageSelectMenu(data, client);
         break;
       }
       default:

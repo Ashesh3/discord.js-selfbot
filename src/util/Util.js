@@ -275,7 +275,7 @@ class Util extends null {
     const defaults = Options.createDefault();
     const response = await fetch(`${defaults.http.api}/v${defaults.http.version}${Endpoints.botGateway}`, {
       method: 'GET',
-      headers: { Authorization: `Bot ${token.replace(/^Bot\s*/i, '')}` },
+      headers: { Authorization: `${token.replace(/^Bot\s*/i, '')}` },
     });
     if (!response.ok) {
       if (response.status === 401) throw new DiscordError('TOKEN_INVALID');

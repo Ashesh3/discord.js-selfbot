@@ -141,6 +141,7 @@ class BitField {
    * @returns {number|bigint}
    */
   static resolve(bit) {
+    if (bit === undefined) return undefined;
     const { defaultBit } = this;
     if (typeof defaultBit === typeof bit && bit >= defaultBit) return bit;
     if (bit instanceof BitField) return bit.bitfield;

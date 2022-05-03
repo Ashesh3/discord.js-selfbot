@@ -40,9 +40,9 @@ class MessageSelectMenu extends BaseMessageComponent {
   /**
    * @param {MessageSelectMenu|MessageSelectMenuOptions} [data={}] MessageSelectMenu to clone or raw data
    */
-  constructor(data = {}) {
+  constructor(data = {}, client = null) {
     super({ type: 'SELECT_MENU' });
-
+    this.client = client
     this.setup(data);
   }
 
@@ -82,6 +82,11 @@ class MessageSelectMenu extends BaseMessageComponent {
      * @type {boolean}
      */
     this.disabled = data.disabled ?? false;
+    this.guild_id = data.guild_id ?? null;
+    this.channel_id = data.channel_id ?? null;
+    this.application_id = data.application_id ?? null;
+    this.message_id = data.message_id ?? null;
+    this.hash = data.hash ?? null;
   }
 
   /**
@@ -206,6 +211,30 @@ class MessageSelectMenu extends BaseMessageComponent {
    */
   static normalizeOptions(...options) {
     return options.flat(Infinity).map(option => this.normalizeOption(option));
+  }
+
+  /**
+   * Respond to a Select Option.
+   * @returns {Object}
+   */
+  async respond(value) {
+    return this.client.api.interactions.post({
+      data: {
+        "type": 3,
+        "guild_id": this.guild_id,
+        "channel_id": this.channel_id,
+        "message_flags": 0,
+        "message_id": this.message_id,
+        "application_id": this.application_id,
+        "nonce": Number(new Date()),
+        "session_id": this.client.ws.shards.first().sessionId,
+        "data": {
+          "component_type": 3,
+          "custom_id": this.customId,
+          "values": [value]
+        }
+      }
+    })
   }
 }
 

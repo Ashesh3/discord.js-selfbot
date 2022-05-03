@@ -148,7 +148,13 @@ class Message extends Base {
        * A list of MessageActionRows in the message
        * @type {MessageActionRow[]}
        */
-      this.components = data.components.map(c => BaseMessageComponent.create(c, this.client));
+      this.components = data.components.map(c => BaseMessageComponent.create({
+        ...c,
+        guild_id: data.guild_id,
+        channel_id: data.channel_id,
+        message_id: data.id,
+        application_id: data.author.id
+      }, this.client));
     } else {
       this.components = this.components?.slice() ?? [];
     }

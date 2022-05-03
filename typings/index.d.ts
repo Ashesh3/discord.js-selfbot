@@ -1609,6 +1609,7 @@ export class MessageButton extends BaseMessageComponent {
   public setStyle(style: MessageButtonStyleResolvable): this;
   public setURL(url: string): this;
   public toJSON(): APIButtonComponent;
+  public respond(): object;
   private static resolveStyle(style: MessageButtonStyleResolvable): MessageButtonStyle;
 }
 
@@ -1814,6 +1815,7 @@ export class MessageSelectMenu extends BaseMessageComponent {
     deleteCount: number,
     ...options: MessageSelectOptionData[] | MessageSelectOptionData[][]
   ): this;
+  public respond(value: string): object;
   public toJSON(): APISelectMenuComponent;
 }
 

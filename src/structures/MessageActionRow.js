@@ -46,7 +46,13 @@ class MessageActionRow extends BaseMessageComponent {
      * The components in this action row
      * @type {MessageActionRowComponent[]}
      */
-    this.components = data.components?.map(c => BaseMessageComponent.create(c, client)) ?? [];
+    this.components = data.components?.map(c => BaseMessageComponent.create({
+      ...c,
+      guild_id: data.guild_id,
+      channel_id: data.channel_id,
+      message_id: data.message_id,
+      application_id: data.application_id
+    }, client)) ?? [];
   }
 
   /**

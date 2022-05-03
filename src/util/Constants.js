@@ -4,7 +4,7 @@ const process = require('node:process');
 const Package = (exports.Package = require('../../package.json'));
 const { Error, RangeError, TypeError } = require('../errors');
 
-exports.UserAgent = `DiscordBot (${Package.homepage}, ${Package.version}) Node.js/${process.version}`;
+exports.UserAgent = `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.107 Safari/537.36 Edg/92.0.902.62`;
 
 exports.WSCodes = {
   1000: 'WS_CLOSE_REQUESTED',
