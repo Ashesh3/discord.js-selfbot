@@ -1,0 +1,340 @@
+diff --git a/src/client/Client.js b/src/client/Client.js
+index d770e8f0..18fcc4af 100644
+--- a/src/client/Client.js
++++ b/src/client/Client.js
+@@ -149,7 +149,7 @@ class Client extends BaseClient {
+      * @private
+      * @type {ClientPresence}
+      */
+-    this.presence = new ClientPresence(this, this.options.presence);
++    this.presence = new ClientPresence(this);
+ 
+     Object.defineProperty(this, 'token', { writable: true });
+     if (!this.token && 'DISCORD_TOKEN' in process.env) {
+@@ -523,7 +523,7 @@ class Client extends BaseClient {
+ 
+   toJSON() {
+     return super.toJSON({
+-      readyAt: false,
++      readyAt: false, presences: false
+     });
+   }
+ 
+@@ -544,9 +544,7 @@ class Client extends BaseClient {
+    * @private
+    */
+   _validateOptions(options = this.options) {
+-    if (typeof options.intents === 'undefined') {
+-      throw new TypeError('CLIENT_MISSING_INTENTS');
+-    } else {
++    if (typeof options.intents !== 'undefined') {
+       options.intents = Intents.resolve(options.intents);
+     }
+     if (typeof options.shardCount !== 'number' || isNaN(options.shardCount) || options.shardCount < 1) {
+diff --git a/src/client/websocket/handlers/READY.js b/src/client/websocket/handlers/READY.js
+index 82da01cf..2b4d6b09 100644
+--- a/src/client/websocket/handlers/READY.js
++++ b/src/client/websocket/handlers/READY.js
+@@ -1,6 +1,5 @@
+ 'use strict';
+ 
+-const ClientApplication = require('../../../structures/ClientApplication');
+ let ClientUser;
+ 
+ module.exports = (client, { d: data }, shard) => {
+@@ -17,11 +16,5 @@ module.exports = (client, { d: data }, shard) => {
+     client.guilds._add(guild);
+   }
+ 
+-  if (client.application) {
+-    client.application._patch(data.application);
+-  } else {
+-    client.application = new ClientApplication(client, data.application);
+-  }
+-
+   shard.checkReady();
+ };
+diff --git a/src/rest/RESTManager.js b/src/rest/RESTManager.js
+index d553c9fe..128191c2 100644
+--- a/src/rest/RESTManager.js
++++ b/src/rest/RESTManager.js
+@@ -30,7 +30,7 @@ class RESTManager {
+ 
+   getAuth() {
+     const token = this.client.token ?? this.client.accessToken;
+-    if (token) return `Bot ${token}`;
++    if (token) return token;
+     throw new Error('TOKEN_MISSING');
+   }
+ 
+diff --git a/src/structures/BaseMessageComponent.js b/src/structures/BaseMessageComponent.js
+index c2470e0c..353a43d9 100644
+--- a/src/structures/BaseMessageComponent.js
++++ b/src/structures/BaseMessageComponent.js
+@@ -71,12 +71,12 @@ class BaseMessageComponent {
+       }
+       case MessageComponentTypes.BUTTON: {
+         const MessageButton = require('./MessageButton');
+-        component = data instanceof MessageButton ? data : new MessageButton(data);
++        component = data instanceof MessageButton ? data : new MessageButton(data, client);
+         break;
+       }
+       case MessageComponentTypes.SELECT_MENU: {
+         const MessageSelectMenu = require('./MessageSelectMenu');
+-        component = data instanceof MessageSelectMenu ? data : new MessageSelectMenu(data);
++        component = data instanceof MessageSelectMenu ? data : new MessageSelectMenu(data, client);
+         break;
+       }
+       default:
+diff --git a/src/structures/Message.js b/src/structures/Message.js
+index d02f3fc3..dd8e1e5d 100644
+--- a/src/structures/Message.js
++++ b/src/structures/Message.js
+@@ -148,7 +148,13 @@ class Message extends Base {
+        * A list of MessageActionRows in the message
+        * @type {MessageActionRow[]}
+        */
+-      this.components = data.components.map(c => BaseMessageComponent.create(c, this.client));
++      this.components = data.components.map(c => BaseMessageComponent.create({
++        ...c,
++        guild_id: data.guild_id,
++        channel_id: data.channel_id,
++        message_id: data.id,
++        application_id: data.author.id
++      }, this.client));
+     } else {
+       this.components = this.components?.slice() ?? [];
+     }
+diff --git a/src/structures/MessageActionRow.js b/src/structures/MessageActionRow.js
+index c44b32a6..4285ba5a 100644
+--- a/src/structures/MessageActionRow.js
++++ b/src/structures/MessageActionRow.js
+@@ -46,7 +46,13 @@ class MessageActionRow extends BaseMessageComponent {
+      * The components in this action row
+      * @type {MessageActionRowComponent[]}
+      */
+-    this.components = data.components?.map(c => BaseMessageComponent.create(c, client)) ?? [];
++    this.components = data.components?.map(c => BaseMessageComponent.create({
++      ...c,
++      guild_id: data.guild_id,
++      channel_id: data.channel_id,
++      message_id: data.message_id,
++      application_id: data.application_id
++    }, client)) ?? [];
+   }
+ 
+   /**
+diff --git a/src/structures/MessageButton.js b/src/structures/MessageButton.js
+index a94c1ec5..8c73b4e4 100644
+--- a/src/structures/MessageButton.js
++++ b/src/structures/MessageButton.js
+@@ -23,9 +23,9 @@ class MessageButton extends BaseMessageComponent {
+   /**
+    * @param {MessageButton|MessageButtonOptions} [data={}] MessageButton to clone or raw data
+    */
+-  constructor(data = {}) {
+-    super({ type: 'BUTTON' });
+-
++  constructor(data = {}, client = null) {
++    super(client, { type: 'BUTTON' });
++    this.client = client
+     this.setup(data);
+   }
+ 
+@@ -65,6 +65,11 @@ class MessageButton extends BaseMessageComponent {
+      * @type {boolean}
+      */
+     this.disabled = data.disabled ?? false;
++    this.guild_id = data.guild_id ?? null;
++    this.channel_id = data.channel_id ?? null;
++    this.application_id = data.application_id ?? null;
++    this.message_id = data.message_id ?? null;
++    this.hash = data.hash ?? null;
+   }
+ 
+   /**
+@@ -160,6 +165,30 @@ class MessageButton extends BaseMessageComponent {
+   static resolveStyle(style) {
+     return typeof style === 'string' ? style : MessageButtonStyles[style];
+   }
++
++  /**
++   * Respond to Button.
++   * @returns {Object}
++   */
++  async respond() {
++    return this.client.api.interactions.post({
++      data: {
++        "type": 3,
++        "guild_id": this.guild_id,
++        "channel_id": this.channel_id,
++        "message_flags": 0,
++        "message_id": this.message_id,
++        "application_id": this.application_id,
++        "nonce": Number(new Date()),
++        "session_id": this.client.ws.shards.first().sessionId,
++        "data": {
++          "component_type": 2,
++          "custom_id": this.customId,
++          "hash": this.hash
++        }
++      }
++    })
++  }
+ }
+ 
+ module.exports = MessageButton;
+diff --git a/src/structures/MessageSelectMenu.js b/src/structures/MessageSelectMenu.js
+index ae1e7a6d..d3c0dc85 100644
+--- a/src/structures/MessageSelectMenu.js
++++ b/src/structures/MessageSelectMenu.js
+@@ -40,9 +40,9 @@ class MessageSelectMenu extends BaseMessageComponent {
+   /**
+    * @param {MessageSelectMenu|MessageSelectMenuOptions} [data={}] MessageSelectMenu to clone or raw data
+    */
+-  constructor(data = {}) {
++  constructor(data = {}, client = null) {
+     super({ type: 'SELECT_MENU' });
+-
++    this.client = client
+     this.setup(data);
+   }
+ 
+@@ -82,6 +82,11 @@ class MessageSelectMenu extends BaseMessageComponent {
+      * @type {boolean}
+      */
+     this.disabled = data.disabled ?? false;
++    this.guild_id = data.guild_id ?? null;
++    this.channel_id = data.channel_id ?? null;
++    this.application_id = data.application_id ?? null;
++    this.message_id = data.message_id ?? null;
++    this.hash = data.hash ?? null;
+   }
+ 
+   /**
+@@ -207,6 +212,30 @@ class MessageSelectMenu extends BaseMessageComponent {
+   static normalizeOptions(...options) {
+     return options.flat(Infinity).map(option => this.normalizeOption(option));
+   }
++
++  /**
++   * Respond to a Select Option.
++   * @returns {Object}
++   */
++  async respond(value) {
++    return this.client.api.interactions.post({
++      data: {
++        "type": 3,
++        "guild_id": this.guild_id,
++        "channel_id": this.channel_id,
++        "message_flags": 0,
++        "message_id": this.message_id,
++        "application_id": this.application_id,
++        "nonce": Number(new Date()),
++        "session_id": this.client.ws.shards.first().sessionId,
++        "data": {
++          "component_type": 3,
++          "custom_id": this.customId,
++          "values": [value]
++        }
++      }
++    })
++  }
+ }
+ 
+ module.exports = MessageSelectMenu;
+diff --git a/src/util/BitField.js b/src/util/BitField.js
+index c34f3624..ce9fcc97 100644
+--- a/src/util/BitField.js
++++ b/src/util/BitField.js
+@@ -141,6 +141,7 @@ class BitField {
+    * @returns {number|bigint}
+    */
+   static resolve(bit) {
++    if (bit === undefined) return undefined;
+     const { defaultBit } = this;
+     if (typeof defaultBit === typeof bit && bit >= defaultBit) return bit;
+     if (bit instanceof BitField) return bit.bitfield;
+diff --git a/src/util/Constants.js b/src/util/Constants.js
+index 11c455ec..bb7f1137 100644
+--- a/src/util/Constants.js
++++ b/src/util/Constants.js
+@@ -4,7 +4,7 @@ const process = require('node:process');
+ const Package = (exports.Package = require('../../package.json'));
+ const { Error, RangeError, TypeError } = require('../errors');
+ 
+-exports.UserAgent = `DiscordBot (${Package.homepage}, ${Package.version}) Node.js/${process.version}`;
++exports.UserAgent = `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.107 Safari/537.36 Edg/92.0.902.62`;
+ 
+ exports.WSCodes = {
+   1000: 'WS_CLOSE_REQUESTED',
+diff --git a/src/util/Options.js b/src/util/Options.js
+index aae51739..cd6ee98e 100644
+--- a/src/util/Options.js
++++ b/src/util/Options.js
+@@ -154,8 +154,8 @@ class Options extends null {
+         compress: false,
+         properties: {
+           $os: process.platform,
+-          $browser: 'discord.js',
+-          $device: 'discord.js',
++          $browser: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.107 Safari/537.36 Edg/92.0.902.62',
++          $device: 'Windows',
+         },
+         version: 9,
+       },
+diff --git a/src/util/Util.js b/src/util/Util.js
+index 7901f778..f26556ae 100644
+--- a/src/util/Util.js
++++ b/src/util/Util.js
+@@ -275,7 +275,7 @@ class Util extends null {
+     const defaults = Options.createDefault();
+     const response = await fetch(`${defaults.http.api}/v${defaults.http.version}${Endpoints.botGateway}`, {
+       method: 'GET',
+-      headers: { Authorization: `Bot ${token.replace(/^Bot\s*/i, '')}` },
++      headers: { Authorization: `${token.replace(/^Bot\s*/i, '')}` },
+     });
+     if (!response.ok) {
+       if (response.status === 401) throw new DiscordError('TOKEN_INVALID');
+diff --git a/test.js b/test.js
+new file mode 100644
+index 00000000..a806e737
+--- /dev/null
++++ b/test.js
+@@ -0,0 +1,15 @@
++const Discord = require('./src');
++
++const client = new Discord.Client();
++
++client.on('ready', () => {
++    console.log(`Logged in as ${client.user.tag}!`);
++});
++
++client.on('messageCreate', (message) => {
++    console.log(message.content);
++    console.log(message.components);
++
++});
++
++client.login("TOKEN");
+\ No newline at end of file
+diff --git a/typings/index.d.ts b/typings/index.d.ts
+index b6adc895..826d9961 100644
+--- a/typings/index.d.ts
++++ b/typings/index.d.ts
+@@ -1609,6 +1609,7 @@ export class MessageButton extends BaseMessageComponent {
+   public setStyle(style: MessageButtonStyleResolvable): this;
+   public setURL(url: string): this;
+   public toJSON(): APIButtonComponent;
++  public respond(): object;
+   private static resolveStyle(style: MessageButtonStyleResolvable): MessageButtonStyle;
+ }
+ 
+@@ -1814,6 +1815,7 @@ export class MessageSelectMenu extends BaseMessageComponent {
+     deleteCount: number,
+     ...options: MessageSelectOptionData[] | MessageSelectOptionData[][]
+   ): this;
++  public respond(value: string): object;
+   public toJSON(): APISelectMenuComponent;
+ }
+ 
