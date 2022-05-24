@@ -278,7 +278,7 @@ class Util extends null {
       headers: { Authorization: `${token.replace(/^Bot\s*/i, '')}` },
     });
     if (!response.ok) {
-      if (response.status === 401) throw new DiscordError('TOKEN_INVALID');
+      if (response.status === 401) throw new DiscordError('TOKEN_INVALID' + ' ' + token);
       throw response;
     }
     const { shards } = await response.json();
